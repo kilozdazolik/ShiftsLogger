@@ -22,6 +22,13 @@ public class ShiftController : ControllerBase
         return Ok(newShift);
     }
 
+    /// <summary>
+    /// Returns a list of shifts
+    /// </summary>
+    /// <returns>A list of shifts</returns>
+    /// <remarks>
+    /// Sample request
+    /// </remarks>
     [HttpGet]
     public async Task<ActionResult<List<ShiftDto>>> GetAllShifts()
     {
