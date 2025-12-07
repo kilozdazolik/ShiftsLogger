@@ -54,6 +54,7 @@ public class UserInterface
                     await _controller.DeleteShift();
                     break;
                 case MenuAction.UpdateShiftDetails:
+                    await _controller.UpdateShift();
                     break;
                 case MenuAction.Exit:
                     Environment.Exit(0);

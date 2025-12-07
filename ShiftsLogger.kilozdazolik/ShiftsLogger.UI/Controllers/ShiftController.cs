@@ -1,5 +1,6 @@
 ﻿using ShiftsLogger.UI.Services;
 using Spectre.Console; 
+using ShiftsLogger.UI.Models;
 
 namespace ShiftsLogger.UI.Controllers;
 
@@ -17,13 +18,12 @@ public async Task ListAllShifts()
 
         if (shifts.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]No shift has found.[/]");
+            AnsiConsole.MarkupLine("[yellow]No shifts have been found.[/]");
             Console.ReadKey();
             return;
         }
 
         var table = new Table();
-        table.AddColumn("ID");
         table.AddColumn("Start");
         table.AddColumn("End");
         table.AddColumn("Duration");
@@ -33,7 +33,7 @@ public async Task ListAllShifts()
             string endTimeString = shift.EndTime.HasValue ? shift.EndTime.Value.ToString() : "[green]On going...[/]";
             string durationString = shift.Duration.HasValue ? shift.Duration.Value.ToString(@"hh\:mm") : "-";
 
-            table.AddRow(shift.Id.ToString(), shift.StartTime.ToString(), endTimeString, durationString);
+            table.AddRow(shift.StartTime.ToString(), endTimeString, durationString);
         }
 
         AnsiConsole.Write(table);
@@ -43,7 +43,8 @@ public async Task ListAllShifts()
 
     public async Task ShowShiftDetails()
     {
-        var id = GetShiftIdFromUser("Which shift do you want to check?");
+        List<ShiftDto> allShifts = await _shiftService.GetAllShiftsAsync();
+        var id = GetShiftIdFromUser(allShifts,"Which shift do you want to check?");
         var shift = await _shiftService.GetShiftByIdAsync(id.Value);
 
         if (shift == null)
@@ -81,7 +82,9 @@ public async Task ListAllShifts()
     
     public async Task StopShift()
     {
-        var id = GetShiftIdFromUser("Which  shift do you want to stop?");
+        List<ShiftDto> allShifts = await _shiftService.GetAllShiftsAsync();
+        var id = GetShiftIdFromUser(allShifts, "Which  shift do you want to stop?");
+        if (id == null) return;
         try 
         {
             await _shiftService.StopShiftAsync(id.Value);
@@ -96,9 +99,10 @@ public async Task ListAllShifts()
     
     public async Task DeleteShift()
     {
-        var id = GetShiftIdFromUser("Which shift do you want to delete?");
+        List<ShiftDto> allShifts = await _shiftService.GetAllShiftsAsync();
+        var id = GetShiftIdFromUser(allShifts, "Which shift you want to delete?");
         
-        if(!AnsiConsole.Confirm("Are you sure you want to delete?")) return;
+        if(!await AnsiConsole.ConfirmAsync("Are you sure you want to delete?")) return;
 
         try
         {
@@ -112,20 +116,84 @@ public async Task ListAllShifts()
         Console.ReadKey();
     }
     
-    private Guid? GetShiftIdFromUser(string promptText)
+    private Guid? GetShiftIdFromUser(List<ShiftDto> shifts, string message)
     {
-        var idString = AnsiConsole.Ask<string>(promptText + " (or type: 'exit'):");
-        
-        if (idString.Trim().ToLower() == "exit") return null;
-        
-        while (!Guid.TryParse(idString, out _))
+        AnsiConsole.MarkupLine($"[yellow]{message}[/]");
+        if (shifts.Count == 0)
         {
-            AnsiConsole.MarkupLine("[red]This is not a valid ID![/]");
-            idString = AnsiConsole.Ask<string>("Try again or type to return: 'exit'");
-
-            if (idString.Trim().ToLower() == "exit") return null;
+            AnsiConsole.MarkupLine("[red]No available data![/]");
+            return null;
         }
-
-        return Guid.Parse(idString);
+        
+        var selectedShift = AnsiConsole.Prompt(
+            new SelectionPrompt<ShiftDto>()
+                .Title("Choose one from the list:")
+                .PageSize(10) 
+                .AddChoices(shifts) 
+                .UseConverter(shift => 
+                {
+                    string endTime = shift.EndTime.HasValue ? shift.EndTime.ToString() : "Ongoing...";
+                    return $"{shift.StartTime} - {endTime}";
+                })
+        );
+        return selectedShift.Id;
     }
+    
+    public async Task UpdateShift()
+{
+    List<ShiftDto> allShifts = await _shiftService.GetAllShiftsAsync();
+    var id = GetShiftIdFromUser(allShifts, "Which shift do you want to update?");
+
+    if (id == null) return; 
+    
+    var shiftToUpdate = await _shiftService.GetShiftByIdAsync(id.Value);
+    
+    if (shiftToUpdate == null)
+    {
+        AnsiConsole.MarkupLine("[red]Shift not found.[/]");
+        Console.ReadKey();
+        return;
+    }
+    
+    AnsiConsole.MarkupLine("Update values (Press [green]Enter[/] to keep current value):");
+    
+    shiftToUpdate.StartTime = AnsiConsole.Prompt(
+        new TextPrompt<DateTime>("Start Time:")
+            .DefaultValue(shiftToUpdate.StartTime)
+            
+            .ValidationErrorMessage("[red]Invalid date format![/]")
+    );
+    
+    if (shiftToUpdate.EndTime != null)
+    {
+        shiftToUpdate.EndTime = AnsiConsole.Prompt(
+            new TextPrompt<DateTime>("End Time:")
+                .DefaultValue(shiftToUpdate.EndTime.Value)
+                .ValidationErrorMessage("[red]Invalid date format![/]")
+        );
+    }
+    else
+    {
+        var input = AnsiConsole.Prompt(
+            new TextPrompt<string>("End Time (Leave empty to keep 'Ongoing'):")
+                .AllowEmpty());
+
+        if (!string.IsNullOrWhiteSpace(input) && DateTime.TryParse(input, out DateTime parsedDate))
+        {
+            shiftToUpdate.EndTime = parsedDate;
+        }
+    }
+    
+    try
+    {
+        await _shiftService.UpdateShiftAsync(shiftToUpdate);
+        AnsiConsole.MarkupLine("[green]Shift updated successfully![/]");
+    }
+    catch (Exception ex)
+    {
+        AnsiConsole.MarkupLine($"[red]Error during update: {ex.Message}[/]");
+    }
+
+    Console.ReadKey();
+}
 }

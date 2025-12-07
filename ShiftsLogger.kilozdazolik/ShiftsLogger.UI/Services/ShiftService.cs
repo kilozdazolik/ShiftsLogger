@@ -85,4 +85,15 @@ public class ShiftService
         }
     }
     
+    public async Task UpdateShiftAsync(ShiftDto shift)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"shift/{shift.Id}", shift);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Update failed: {response.StatusCode} - {message}");
+        }
+    }
+    
 }
