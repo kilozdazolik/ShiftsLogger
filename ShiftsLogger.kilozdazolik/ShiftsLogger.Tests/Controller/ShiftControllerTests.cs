@@ -63,7 +63,7 @@ public class ShiftControllerTests
     {
         //Arrange
         var shiftId = Guid.NewGuid();
-        
+        A.CallTo(() => _shiftService.GetShiftById(shiftId)).Returns(Task.FromResult<ShiftDto?>(null));        
         
         //Act
         var result = await _controller.GetShiftById(shiftId);
